@@ -36,7 +36,7 @@ class AppServiceProvider extends ServiceProvider
         Date::use(CarbonImmutable::class);
 
         DB::prohibitDestructiveCommands(
-            app()->isProduction(),
+            $this->app->isProduction() && !$this->app->runningInConsole(),
         );
 
         Password::defaults(fn (): ?Password => app()->isProduction()

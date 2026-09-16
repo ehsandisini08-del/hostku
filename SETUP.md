@@ -10,7 +10,7 @@ Panduan setup lengkap untuk menjalankan platform HostKu dengan custom hosting se
 ┌─────────────────────────────┐       SSH (port 22)       ┌──────────────────────────────┐
 │       APP SERVER             │ ◄──────────────────────► │       HOSTING SERVER          │
 │                              │                          │                              │
-│  Laravel 13 + PHP 8.3       │                          │  Ubuntu 22.04 / 24.04        │
+│  Laravel 13 + PHP 8.4       │                          │  Ubuntu 22.04 / 24.04        │
 │  MySQL / SQLite              │                          │  Nginx + PHP-FPM + MySQL     │
 │  Redis                       │                          │  Certbot (Let's Encrypt)     │
 │                              │                          │                              │
@@ -28,7 +28,7 @@ Panduan setup lengkap untuk menjalankan platform HostKu dengan custom hosting se
 ### 1.1 Requirements
 
 - Ubuntu 22.04 / 24.04 LTS
-- PHP 8.3+
+- **PHP 8.4+** (wajib — Laravel 13 + Symfony 8.x butuh PHP >= 8.4.1)
 - MySQL 8.0+ / MariaDB 10.11+
 - Redis 7+ (untuk queue)
 - Composer 2
@@ -41,16 +41,18 @@ Panduan setup lengkap untuk menjalankan platform HostKu dengan custom hosting se
 sudo apt update && sudo apt upgrade -y
 
 # === PENTING: Tambah PPA ondrej/php dulu ===
-# PHP 8.3 tidak ada di default repo Ubuntu. Wajib tambah PPA ini.
-# Kalau error "Unable to locate package php8.3-*", jalankan 3 baris di bawah.
+# PHP 8.4 tidak ada di default repo Ubuntu. Wajib tambah PPA ini.
 sudo apt install -y software-properties-common
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
 
-# Install PHP + extensions
-sudo apt install -y php8.3 php8.3-cli php8.3-fpm php8.3-mysql php8.3-redis \
-    php8.3-curl php8.3-mbstring php8.3-xml php8.3-zip php8.3-bcmath \
-    php8.3-gd php8.3-intl unzip git curl
+# Install PHP 8.4 + extensions
+sudo apt install -y php8.4 php8.4-cli php8.4-fpm php8.4-mysql php8.4-redis \
+    php8.4-curl php8.4-mbstring php8.4-xml php8.4-zip php8.4-bcmath \
+    php8.4-gd php8.4-intl unzip git curl
+
+# Set PHP 8.4 sebagai default CLI
+sudo update-alternatives --set php /usr/bin/php8.4
 
 # Install MySQL
 sudo apt install -y mysql-server
@@ -86,7 +88,7 @@ EXIT;
 ```bash
 # Clone / upload project
 cd /var/www
-git clone <repo-url> hostku
+git clone https://github.com/ehsandisini08-del/hostku.git hostku
 cd hostku
 
 # Copy env
@@ -134,11 +136,25 @@ DOKU_CLIENT_ID=
 ### 1.5 Install Dependencies & Build
 
 ```bash
-# Install PHP packages
-composer install --no-dev --optimize-autoloader
+# === PENTING: Baca baik-baik ===
+# Proyek ini pakai PHP 8.4+ dan Laravel 13 dengan Symfony 8.x.
+# Pastikan php -v menunjukkan 8.4.x sebelum lanjut.
+
+php -v
+# Harus: PHP 8.4.x
+
+# Install PHP packages (production mode)
+# --no-dev: skip dev packages (pest, pint, larastan, dll)
+# --no-scripts: skip post-install scripts (boost:update hanya untuk dev)
+composer install --no-dev --no-scripts
 
 # Generate app key
 php artisan key:generate
+
+# === PENTING: Install Faker untuk seeding ===
+# fakerphp/faker ada di require-dev, tapi dibutuhkan
+# saat seeding di production. Install manual:
+composer require fakerphp/faker
 
 # Install & build frontend
 npm install
@@ -174,7 +190,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
         fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         include fastcgi_params;
     }
@@ -247,15 +263,15 @@ sudo apt install -y software-properties-common
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
 
-# Web server + PHP + MySQL + SSL
-sudo apt install -y nginx mysql-server php8.3-fpm php8.3-cli \
-    php8.3-mysql php8.3-curl php8.3-mbstring php8.3-xml \
-    php8.3-zip php8.3-gd php8.3-intl \
+# Web server + PHP 8.4 + MySQL + SSL
+sudo apt install -y nginx mysql-server php8.4-fpm php8.4-cli \
+    php8.4-mysql php8.4-curl php8.4-mbstring php8.4-xml \
+    php8.4-zip php8.4-gd php8.4-intl \
     certbot python3-certbot-nginx
 
 # Enable services
-sudo systemctl enable nginx mysql php8.3-fpm
-sudo systemctl start nginx mysql php8.3-fpm
+sudo systemctl enable nginx mysql php8.4-fpm
+sudo systemctl start nginx mysql php8.4-fpm
 ```
 
 ### 2.2 MySQL Setup
@@ -294,7 +310,7 @@ hostku-provision ALL=(ALL) NOPASSWD: /usr/sbin/useradd, /usr/sbin/userdel, /usr/
 hostku-provision ALL=(ALL) NOPASSWD: /usr/bin/passwd, /bin/mkdir, /bin/chown, /bin/chmod
 hostku-provision ALL=(ALL) NOPASSWD: /usr/bin/ln, /bin/rm, /bin/mv, /usr/bin/tee, /usr/bin/sh
 hostku-provision ALL=(ALL) NOPASSWD: /bin/systemctl reload nginx
-hostku-provision ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.3-fpm, /bin/systemctl reload php*fpm
+hostku-provision ALL=(ALL) NOPASSWD: /bin/systemctl reload php8.4-fpm, /bin/systemctl reload php*fpm
 hostku-provision ALL=(ALL) NOPASSWD: /usr/bin/certbot, /usr/bin/mysql, /usr/bin/du
 ```
 
@@ -319,14 +335,14 @@ ls /etc/nginx/sites-enabled/
 Pastikan PHP-FPM pool default berjalan:
 
 ```bash
-sudo systemctl status php8.3-fpm
-ls /etc/php/8.3/fpm/pool.d/
+sudo systemctl status php8.4-fpm
+ls /etc/php/8.4/fpm/pool.d/
 ```
 
-Folder `/etc/php/8.3/fpm/pool.d/` harus writable oleh `hostku-provision`:
+Folder `/etc/php/8.4/fpm/pool.d/` harus writable oleh `hostku-provision`:
 
 ```bash
-sudo chmod 755 /etc/php/8.3/fpm/pool.d/
+sudo chmod 755 /etc/php/8.4/fpm/pool.d/
 ```
 
 ---
@@ -396,10 +412,11 @@ sudo ufw enable
 
 ### 4.1 Login Admin
 
+Email dan password default dari seeder:
+
 ```
-Buka: https://app.hostku.id/login
 Email: admin@hostku.id
-Password: password123
+Password: password
 ```
 
 ### 4.2 Buka Halaman Hosting Servers
@@ -423,7 +440,7 @@ Pilih `Custom (SSH + Nginx + PHP-FPM)`, isi:
 | SSH User | `hostku-provision` | User provisioning |
 | SSH Key Path | `/var/www/hostku/storage/keys/hostku_provision` | Path private key di App Server |
 | Web Server | `nginx` | Pilih nginx |
-| PHP Version | `8.3` | Versi PHP terinstall |
+| PHP Version | `8.4` | Versi PHP terinstall |
 | Base Path | `/var/www` | Root folder customer |
 | SSL Email | `admin@hostku.id` | Untuk Let's Encrypt |
 
@@ -526,7 +543,7 @@ ls -la /var/www/testclient123/
 cat /etc/nginx/sites-available/testclient123.hostku.id.conf
 
 # Cek PHP-FPM pool
-cat /etc/php/8.3/fpm/pool.d/testclient123.conf
+cat /etc/php/8.4/fpm/pool.d/testclient123.conf
 
 # Cek database
 sudo mysql -e "SHOW DATABASES LIKE 'h_testclient123';"
@@ -536,21 +553,70 @@ sudo mysql -e "SHOW DATABASES LIKE 'h_testclient123';"
 
 ## Bagian 7 — Troubleshooting
 
-### "Unable to locate package php8.3-*" — PHP 8.3 tidak ditemukan
+### "Composer install gagal: PHP version tidak memenuhi" — PHP 8.3
 
-**Penyebab:** Ubuntu default repo tidak menyediakan PHP 8.3. Wajib tambah PPA ondrej/php.
+**Penyebab:** Server menjalankan PHP 8.3, tapi proyek ini butuh PHP 8.4+. Laravel 13 + Symfony 8.x minimal PHP 8.4.1.
+
+**Solusi:** Upgrade PHP ke 8.4.
+```bash
+# Cek versi PHP saat ini
+php -v
+
+# Kalau masih 8.3, jalankan:
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ondrej/php -y
+sudo apt update
+sudo apt install -y php8.4 php8.4-cli php8.4-fpm php8.4-mysql \
+    php8.4-curl php8.4-mbstring php8.4-xml php8.4-zip \
+    php8.4-bcmath php8.4-gd php8.4-intl php8.4-redis
+
+# Set PHP 8.4 sebagai default
+sudo update-alternatives --set php /usr/bin/php8.4
+
+# Update socket di Nginx config: php8.3-fpm → php8.4-fpm
+
+# Restart
+sudo systemctl restart php8.4-fpm
+sudo systemctl reload nginx
+```
+
+### "Unable to locate package php8.4-*" — PHP 8.4 tidak ditemukan
+
+**Penyebab:** Ubuntu default repo tidak menyediakan PHP 8.4. Wajib tambah PPA ondrej/php.
 
 **Solusi:**
 ```bash
 sudo apt install -y software-properties-common
 sudo add-apt-repository ppa:ondrej/php -y
 sudo apt update
-sudo apt install -y php8.3 php8.3-fpm php8.3-cli php8.3-mysql \
-    php8.3-curl php8.3-mbstring php8.3-xml php8.3-zip \
-    php8.3-bcmath php8.3-gd php8.3-intl
+sudo apt install -y php8.4 php8.4-fpm php8.4-cli php8.4-mysql \
+    php8.4-curl php8.4-mbstring php8.4-xml php8.4-zip \
+    php8.4-bcmath php8.4-gd php8.4-intl
 ```
 
-> **Catatan:** Kalau server kamu tidak support PHP 8.3 (misal Ubuntu terlalu tua), gunakan PHP 8.2 atau 8.1. Ganti angka `8.3` jadi `8.2` di semua command. Lalu di form admin Hosting Servers, pilih PHP version yang sesuai.
+### "ERROR: There are no commands defined in the boost namespace" — boost:update
+
+**Penyebab:** Script `post-update-cmd` di `composer.json` menjalankan `php artisan boost:update`, tapi package `laravel/boost` hanya di `require-dev` sehingga tidak terinstall saat `--no-dev`.
+
+**Solusi:** Gunakan `composer install --no-dev --no-scripts`, lalu jalankan artisan commands manual.
+```bash
+composer install --no-dev --no-scripts
+php artisan key:generate
+php artisan optimize
+```
+
+### "Call to undefined function fake()" — Faker tidak terinstall
+
+**Penyebab:** `fakerphp/faker` ada di `require-dev`, tapi dibutuhkan saat `php artisan db:seed` atau `migrate --seed` karena factory menggunakan fungsi `fake()`.
+
+**Solusi:** Install Faker sebagai production dependency.
+```bash
+composer require fakerphp/faker
+```
+Lalu jalankan ulang:
+```bash
+php artisan migrate --seed
+```
 
 ### SSH Connection Failed
 
@@ -644,12 +710,16 @@ sudo -u www-data ssh -i /var/www/hostku/storage/keys/hostku_provision hostku-pro
 
 ## Ringkasan Checklist
 
-- [ ] App Server: PHP 8.3, MySQL, Redis, Nginx terinstall
-- [ ] App Server: Laravel ter-clone, .env terisi, migration & seed jalan
+- [ ] App Server: PHP 8.4, MySQL, Redis, Nginx terinstall
+- [ ] App Server: `php -v` menunjukkan 8.4.x (bukan 8.3)
+- [ ] App Server: Laravel ter-clone, .env terisi
+- [ ] App Server: `composer require fakerphp/faker` (wajib untuk seeding)
+- [ ] App Server: `composer install --no-dev --no-scripts` sukses
+- [ ] App Server: `php artisan migrate --seed` sukses
 - [ ] App Server: Nginx config + SSL jalan
 - [ ] App Server: Supervisor queue worker jalan
 - [ ] App Server: Cron scheduler jalan
-- [ ] Hosting Server: Nginx, PHP-FPM, MySQL, Certbot terinstall
+- [ ] Hosting Server: Nginx, PHP 8.4-FPM, MySQL, Certbot terinstall
 - [ ] Hosting Server: User `hostku-provision` dibuat + sudo access
 - [ ] Hosting Server: MySQL user `hostku_provision` dibuat
 - [ ] SSH Key: Generate di App Server → public key di Hosting Server
