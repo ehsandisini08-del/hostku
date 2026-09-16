@@ -144,17 +144,26 @@ php -v
 # Harus: PHP 8.4.x
 
 # Install PHP packages (production mode)
-# --no-dev: skip dev packages (pest, pint, larastan, dll)
-# --no-scripts: skip post-install scripts (boost:update hanya untuk dev)
-composer install --no-dev --no-scripts
+# --no-dev: skip dev packages (pest, pint, larastan, laravel/boost, dll)
+# JANGAN pakai --no-scripts: script post-autoload-dump menjalankan
+# `php artisan package:discover` yang MENULIS ULANG bootstrap/cache/packages.php
+# sesuai paket yang benar-benar terpasang (tanpa Boost).
+composer install --no-dev
+
+# Bersihkan cache discovery lama (mencegah "BoostServiceProvider not found")
+rm -f bootstrap/cache/packages.php bootstrap/cache/services.php bootstrap/cache/config.php
+
+# Regenerate manifest paket
+php artisan package:discover
 
 # Generate app key
 php artisan key:generate
 
 # === PENTING: Install Faker untuk seeding ===
 # fakerphp/faker ada di require-dev, tapi dibutuhkan
-# saat seeding di production. Install manual:
-composer require fakerphp/faker
+# saat seeding di production. Install manual.
+# --no-scripts agar post-update-cmd (boost:update) tidak error di production.
+composer require fakerphp/faker --no-scripts
 
 # Install & build frontend
 npm install
@@ -594,15 +603,33 @@ sudo apt install -y php8.4 php8.4-fpm php8.4-cli php8.4-mysql \
     php8.4-bcmath php8.4-gd php8.4-intl
 ```
 
-### "ERROR: There are no commands defined in the boost namespace" — boost:update
+### "Class Laravel\Boost\BoostServiceProvider not found" — saat artisan command
 
-**Penyebab:** Script `post-update-cmd` di `composer.json` menjalankan `php artisan boost:update`, tapi package `laravel/boost` hanya di `require-dev` sehingga tidak terinstall saat `--no-dev`.
+**Penyebab:** `laravel/boost` hanya ada di `require-dev`, jadi tidak terinstall saat `--no-dev`. Tapi file cache discovery `bootstrap/cache/packages.php` masih mencantumkan `BoostServiceProvider` dari install dev sebelumnya. Cache ini basi karena langkah lama memakai `composer install --no-dev --no-scripts` yang melewatkan `package:discover`.
 
-**Solusi:** Gunakan `composer install --no-dev --no-scripts`, lalu jalankan artisan commands manual.
+**Solusi:** Regenerate cache discovery sesuai paket production yang terpasang.
 ```bash
-composer install --no-dev --no-scripts
-php artisan key:generate
+cd /var/www/hostku
+
+# 1. Hapus cache yang basi
+rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
+      bootstrap/cache/config.php bootstrap/cache/routes.php bootstrap/cache/events.php
+
+# 2. Regenerate manifest (tanpa --no-scripts supaya package:discover jalan)
+composer install --no-dev
+
+# 3. Optimasi ulang
+php artisan config:clear
 php artisan optimize
+```
+
+### "Cannot redeclare class AdminUserSeeder" — saat seeding
+
+**Penyebab:** File `database/seeders/AdminUserSeeder.php` kehilangan deklarasi `namespace Database\Seeders;`, sehingga kelas ter-declare di global namespace dan autoloader PSR-4 mengikut file yang sama dua kali.
+
+**Solusi:** Pastikan baris `namespace Database\Seeders;` ada di bawah `<?php` pada file seeder tersebut (sama seperti `RoleSeeder`/`ProductSeeder`). Setelah itu jalankan ulang:
+```bash
+php artisan migrate --seed
 ```
 
 ### "Call to undefined function fake()" — Faker tidak terinstall
@@ -713,8 +740,8 @@ sudo -u www-data ssh -i /var/www/hostku/storage/keys/hostku_provision hostku-pro
 - [ ] App Server: PHP 8.4, MySQL, Redis, Nginx terinstall
 - [ ] App Server: `php -v` menunjukkan 8.4.x (bukan 8.3)
 - [ ] App Server: Laravel ter-clone, .env terisi
-- [ ] App Server: `composer require fakerphp/faker` (wajib untuk seeding)
-- [ ] App Server: `composer install --no-dev --no-scripts` sukses
+- [ ] App Server: `composer require fakerphp/faker --no-scripts` (wajib untuk seeding)
+- [ ] App Server: `composer install --no-dev` + `php artisan package:discover` sukses (tanpa `--no-scripts`)
 - [ ] App Server: `php artisan migrate --seed` sukses
 - [ ] App Server: Nginx config + SSL jalan
 - [ ] App Server: Supervisor queue worker jalan
