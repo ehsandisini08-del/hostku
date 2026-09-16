@@ -1,6 +1,9 @@
 <?php
 
+use App\Models\HostingPlan;
 use App\Models\HostingServer;
+use App\Models\HostingService;
+use App\Models\Product;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Hosting\CustomSshAdapter;
@@ -116,3 +119,98 @@ test('custom ssh adapter throws exception when key file not found', function () 
         'password' => 'secret',
     ]);
 })->throws(RuntimeException::class);
+
+test('admin can update hosting server', function () {
+    $admin = createAdminUser();
+    $server = HostingServer::create([
+        'name' => 'Original Name',
+        'hostname' => 'orig.hostku.id',
+        'ip_address' => '10.0.0.1',
+        'panel_type' => 'custom_ssh',
+        'ssh_user' => 'hostku_provision',
+        'ssh_key_path' => '/var/www/hostku/storage/keys/hostku_provision',
+        'web_server' => 'nginx',
+        'php_version' => '8.3',
+        'base_path' => '/var/www',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($admin)->put(route('admin.hosting-servers.update', $server), [
+        'name' => 'Updated Name',
+        'hostname' => 'updated.hostku.id',
+        'ip_address' => '10.0.0.2',
+        'panel_type' => 'custom_ssh',
+        'ssh_user' => 'hostku-provision',
+        'ssh_key_path' => '/var/www/hostku/storage/keys/hostku_provision',
+        'web_server' => 'nginx',
+        'php_version' => '8.4',
+        'base_path' => '/var/www',
+        'is_active' => true,
+    ]);
+
+    $response->assertRedirect();
+    $server->refresh();
+    expect($server->name)->toBe('Updated Name')
+        ->and($server->ssh_user)->toBe('hostku-provision')
+        ->and($server->php_version)->toBe('8.4');
+});
+
+test('admin can delete hosting server without active services', function () {
+    $admin = createAdminUser();
+    $server = HostingServer::create([
+        'name' => 'Server to Delete',
+        'hostname' => 'delete.hostku.id',
+        'ip_address' => '10.0.0.3',
+        'panel_type' => 'custom_ssh',
+        'ssh_user' => 'hostku-provision',
+        'ssh_key_path' => '/var/www/hostku/storage/keys/hostku_provision',
+        'web_server' => 'nginx',
+        'php_version' => '8.4',
+        'base_path' => '/var/www',
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($admin)->delete(route('admin.hosting-servers.destroy', $server));
+
+    $response->assertRedirect();
+    $this->assertDatabaseMissing('hosting_servers', ['id' => $server->id]);
+});
+
+test('admin cannot delete hosting server with services', function () {
+    $admin = createAdminUser();
+    $server = HostingServer::create([
+        'name' => 'Busy Server',
+        'hostname' => 'busy.hostku.id',
+        'ip_address' => '10.0.0.4',
+        'panel_type' => 'custom_ssh',
+        'ssh_user' => 'hostku-provision',
+        'ssh_key_path' => '/var/www/hostku/storage/keys/hostku_provision',
+        'web_server' => 'nginx',
+        'php_version' => '8.4',
+        'base_path' => '/var/www',
+        'is_active' => true,
+    ]);
+
+    $product = Product::factory()->hosting()->create();
+    $plan = HostingPlan::create([
+        'product_id' => $product->id,
+        'disk_space_mb' => 5000,
+        'bandwidth_mb' => 50000,
+        'max_websites' => 1,
+        'max_databases' => 1,
+        'max_emails' => 1,
+        'server_type' => 'custom_ssh',
+    ]);
+
+    HostingService::create([
+        'hosting_plan_id' => $plan->id,
+        'hosting_server_id' => $server->id,
+        'domain' => 'client.com',
+        'username' => 'client',
+    ]);
+
+    $response = $this->actingAs($admin)->delete(route('admin.hosting-servers.destroy', $server));
+
+    $response->assertRedirect();
+    $this->assertDatabaseHas('hosting_servers', ['id' => $server->id]);
+});

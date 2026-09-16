@@ -25,6 +25,8 @@ Route::middleware(['auth', 'verified', 'role:admin,super_admin'])->prefix('admin
 
     Route::get('/hosting-servers', [AdminController::class, 'hostingServers'])->name('hosting-servers');
     Route::post('/hosting-servers', [AdminController::class, 'storeHostingServer'])->name('hosting-servers.store');
+    Route::put('/hosting-servers/{server}', [AdminController::class, 'updateHostingServer'])->name('hosting-servers.update');
+    Route::delete('/hosting-servers/{server}', [AdminController::class, 'destroyHostingServer'])->name('hosting-servers.destroy');
 
     Route::get('/vps', [AdminController::class, 'vps'])->name('vps');
 

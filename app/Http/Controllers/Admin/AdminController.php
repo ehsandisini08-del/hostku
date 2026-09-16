@@ -323,6 +323,43 @@ class AdminController extends Controller
         return back()->with('success', 'Server added.');
     }
 
+    public function updateHostingServer(Request $request, HostingServer $server): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'hostname' => ['required', 'string', 'max:255'],
+            'ip_address' => ['required', 'string', 'max:45'],
+            'panel_type' => ['required', 'in:cpanel,directadmin,custom_ssh'],
+            'api_url' => ['required_if:panel_type,cpanel,directadmin', 'nullable', 'string', 'max:255'],
+            'api_token' => ['required_if:panel_type,cpanel,directadmin', 'nullable', 'string'],
+            'api_username' => ['nullable', 'string', 'max:255'],
+            'max_accounts' => ['nullable', 'integer', 'min:1'],
+            'is_active' => ['boolean'],
+            'ssh_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'ssh_user' => ['required_if:panel_type,custom_ssh', 'nullable', 'string', 'max:100'],
+            'ssh_key_path' => ['required_if:panel_type,custom_ssh', 'nullable', 'string', 'max:255'],
+            'web_server' => ['nullable', 'string', 'max:50'],
+            'php_version' => ['nullable', 'string', 'max:20'],
+            'base_path' => ['nullable', 'string', 'max:255'],
+            'ssl_email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $server->update($validated);
+
+        return back()->with('success', 'Server updated.');
+    }
+
+    public function destroyHostingServer(HostingServer $server): RedirectResponse
+    {
+        if ($server->services()->exists()) {
+            return back()->with('error', 'Cannot delete server with active services.');
+        }
+
+        $server->delete();
+
+        return back()->with('success', 'Server deleted.');
+    }
+
     public function vps(): Response
     {
         return Inertia::render('admin/Vps', [
