@@ -34,38 +34,42 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($tlds as $i => [$tld, $reg, $renew, $transfer, $premium]) {
-            $product = Product::create([
-                'type' => 'domain',
-                'name' => $tld,
-                'slug' => Str::slug('domain-'.$tld),
-                'description' => "Domain {$tld} registration",
-                'features' => [
-                    'Free DNS Management',
-                    'URL Forwarding',
-                    'Email Forwarding',
-                    '24/7 Support',
-                ],
-                'sort_order' => $i,
-                'is_active' => true,
-            ]);
+            $product = Product::firstOrCreate(
+                ['slug' => Str::slug('domain-'.$tld)],
+                [
+                    'type' => 'domain',
+                    'name' => $tld,
+                    'description' => "Domain {$tld} registration",
+                    'features' => [
+                        'Free DNS Management',
+                        'URL Forwarding',
+                        'Email Forwarding',
+                        '24/7 Support',
+                    ],
+                    'sort_order' => $i,
+                    'is_active' => true,
+                ]
+            );
 
-            DomainPricing::create([
-                'product_id' => $product->id,
-                'tld' => $tld,
-                'registration_price' => $reg,
-                'renewal_price' => $renew,
-                'transfer_price' => $transfer,
-                'min_years' => 1,
-                'max_years' => 10,
-                'is_premium' => $premium,
-            ]);
+            DomainPricing::firstOrCreate(
+                ['product_id' => $product->id, 'tld' => $tld],
+                [
+                    'registration_price' => $reg,
+                    'renewal_price' => $renew,
+                    'transfer_price' => $transfer,
+                    'min_years' => 1,
+                    'max_years' => 10,
+                    'is_premium' => $premium,
+                ]
+            );
 
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'billing_cycle' => 'annually',
-                'price' => $renew,
-                'setup_fee' => 0,
-            ]);
+            ProductPrice::firstOrCreate(
+                ['product_id' => $product->id, 'billing_cycle' => 'annually'],
+                [
+                    'price' => $renew,
+                    'setup_fee' => 0,
+                ]
+            );
         }
     }
 
@@ -138,41 +142,47 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($plans as $i => $plan) {
-            $product = Product::create([
-                'type' => 'hosting',
-                'name' => $plan['name'].' Hosting',
-                'slug' => Str::slug($plan['name'].'-hosting'),
-                'description' => $plan['desc'],
-                'features' => $plan['features'],
-                'sort_order' => $i,
-                'is_active' => true,
-            ]);
+            $product = Product::firstOrCreate(
+                ['slug' => Str::slug($plan['name'].'-hosting')],
+                [
+                    'type' => 'hosting',
+                    'name' => $plan['name'].' Hosting',
+                    'description' => $plan['desc'],
+                    'features' => $plan['features'],
+                    'sort_order' => $i,
+                    'is_active' => true,
+                ]
+            );
 
-            HostingPlan::create([
-                'product_id' => $product->id,
-                'disk_space_mb' => $plan['disk'],
-                'bandwidth_mb' => $plan['bandwidth'],
-                'max_websites' => $plan['websites'],
-                'max_databases' => $plan['databases'],
-                'max_emails' => $plan['emails'],
-                'max_ftp' => $plan['websites'] * 2 ?: 0,
-                'max_subdomains' => $plan['websites'] * 3 ?: 0,
-                'server_type' => 'cpanel',
-            ]);
+            HostingPlan::firstOrCreate(
+                ['product_id' => $product->id],
+                [
+                    'disk_space_mb' => $plan['disk'],
+                    'bandwidth_mb' => $plan['bandwidth'],
+                    'max_websites' => $plan['websites'],
+                    'max_databases' => $plan['databases'],
+                    'max_emails' => $plan['emails'],
+                    'max_ftp' => $plan['websites'] * 2 ?: 0,
+                    'max_subdomains' => $plan['websites'] * 3 ?: 0,
+                    'server_type' => 'cpanel',
+                ]
+            );
 
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'billing_cycle' => 'monthly',
-                'price' => $plan['monthly'],
-                'setup_fee' => 0,
-            ]);
+            ProductPrice::firstOrCreate(
+                ['product_id' => $product->id, 'billing_cycle' => 'monthly'],
+                [
+                    'price' => $plan['monthly'],
+                    'setup_fee' => 0,
+                ]
+            );
 
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'billing_cycle' => 'annually',
-                'price' => $plan['annually'],
-                'setup_fee' => 0,
-            ]);
+            ProductPrice::firstOrCreate(
+                ['product_id' => $product->id, 'billing_cycle' => 'annually'],
+                [
+                    'price' => $plan['annually'],
+                    'setup_fee' => 0,
+                ]
+            );
         }
     }
 
@@ -236,42 +246,48 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($plans as $plan) {
-            $product = Product::create([
-                'type' => 'vps',
-                'name' => $plan['name'],
-                'slug' => Str::slug($plan['name']),
-                'description' => $plan['desc'],
-                'features' => $features,
-                'sort_order' => $plan['sort'],
-                'is_active' => true,
-            ]);
+            $product = Product::firstOrCreate(
+                ['slug' => Str::slug($plan['name'])],
+                [
+                    'type' => 'vps',
+                    'name' => $plan['name'],
+                    'description' => $plan['desc'],
+                    'features' => $features,
+                    'sort_order' => $plan['sort'],
+                    'is_active' => true,
+                ]
+            );
 
-            VpsPlan::create([
-                'product_id' => $product->id,
-                'cpu_cores' => $plan['cpu'],
-                'ram_mb' => $plan['ram'],
-                'disk_mb' => $plan['disk'],
-                'bandwidth_mb' => $plan['bandwidth'],
-                'ipv4_count' => 1,
-                'ipv6_count' => 1,
-                'os_templates' => ['ubuntu-22.04', 'ubuntu-24.04', 'debian-12', 'centos-9-stream', 'rocky-9'],
-                'network_bridge' => 'vmbr0',
-                'storage_pool' => 'local-lvm',
-            ]);
+            VpsPlan::firstOrCreate(
+                ['product_id' => $product->id],
+                [
+                    'cpu_cores' => $plan['cpu'],
+                    'ram_mb' => $plan['ram'],
+                    'disk_mb' => $plan['disk'],
+                    'bandwidth_mb' => $plan['bandwidth'],
+                    'ipv4_count' => 1,
+                    'ipv6_count' => 1,
+                    'os_templates' => ['ubuntu-22.04', 'ubuntu-24.04', 'debian-12', 'centos-9-stream', 'rocky-9'],
+                    'network_bridge' => 'vmbr0',
+                    'storage_pool' => 'local-lvm',
+                ]
+            );
 
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'billing_cycle' => 'monthly',
-                'price' => $plan['monthly'],
-                'setup_fee' => 25000,
-            ]);
+            ProductPrice::firstOrCreate(
+                ['product_id' => $product->id, 'billing_cycle' => 'monthly'],
+                [
+                    'price' => $plan['monthly'],
+                    'setup_fee' => 25000,
+                ]
+            );
 
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'billing_cycle' => 'annually',
-                'price' => $plan['annually'],
-                'setup_fee' => 0,
-            ]);
+            ProductPrice::firstOrCreate(
+                ['product_id' => $product->id, 'billing_cycle' => 'annually'],
+                [
+                    'price' => $plan['annually'],
+                    'setup_fee' => 0,
+                ]
+            );
         }
     }
 }
