@@ -26,6 +26,7 @@ use App\Services\Proxmox\ProxmoxService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -351,13 +352,22 @@ class AdminController extends Controller
 
     public function destroyHostingServer(HostingServer $server): RedirectResponse
     {
-        if ($server->services()->exists()) {
-            return back()->with('error', 'Cannot delete server with active services.');
+        try {
+            if ($server->services()->exists()) {
+                return back()->with('error', 'Cannot delete server with active services.');
+            }
+
+            $server->delete();
+
+            return back()->with('success', 'Server deleted.');
+        } catch (\Throwable $e) {
+            Log::error('Failed to delete hosting server: '.$e->getMessage(), [
+                'server_id' => $server->id,
+                'exception' => $e,
+            ]);
+
+            return back()->with('error', 'Gagal menghapus server: '.$e->getMessage());
         }
-
-        $server->delete();
-
-        return back()->with('success', 'Server deleted.');
     }
 
     public function vps(): Response
