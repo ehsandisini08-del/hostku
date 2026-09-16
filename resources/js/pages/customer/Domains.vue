@@ -1,0 +1,35 @@
+<script setup lang="ts">
+import { Head, Link } from '@inertiajs/vue3';
+import { Globe } from '@lucide/vue';
+
+defineOptions({ layout: { breadcrumbs: [{ title: 'Dashboard', href: '/customer/dashboard' }, { title: 'My Domains', href: '#' }] } });
+
+const props = defineProps<{ domains: { data: any[]; links: any; meta: any } }>();
+const statusColor = (s: string) => {
+    const m: Record<string, string> = { active: 'rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800', pending: 'rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800', expired: 'rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800' };
+    return m[s] ?? 'rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-800';
+};
+</script>
+
+<template>
+    <Head title="My Domains" />
+    <div class="flex flex-1 flex-col gap-4 p-4">
+        <h1 class="text-xl font-semibold text-neutral-900 dark:text-white">My Domains</h1>
+        <div v-if="domains.data.length === 0" class="py-16 text-center">
+            <Globe class="mx-auto h-12 w-12 text-neutral-300 dark:text-neutral-600" />
+            <p class="mt-4 text-neutral-500">Belum ada domain.</p>
+            <Link href="/domain" class="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">Cari domain</Link>
+        </div>
+        <div v-else class="rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+            <table class="w-full text-sm">
+                <thead><tr class="border-b border-neutral-200 text-left dark:border-neutral-800"><th class="px-4 py-3 font-semibold text-neutral-900 dark:text-white">Domain</th><th class="px-4 py-3 font-semibold text-neutral-900 dark:text-white">Status</th><th class="px-4 py-3 font-semibold text-neutral-900 dark:text-white">Registrar</th><th class="px-4 py-3 font-semibold text-neutral-900 dark:text-white">Expires</th></tr></thead>
+                <tbody><tr v-for="d in domains.data" :key="d.id" class="border-b border-neutral-100 dark:border-neutral-800/50">
+                    <td class="px-4 py-3"><Link :href="`/customer/domains/${d.id}`" class="text-blue-600 hover:text-blue-700 dark:text-blue-400">{{ d.domain_name }}</Link></td>
+                    <td class="px-4 py-3"><span :class="statusColor(d.status)">{{ d.status }}</span></td>
+                    <td class="px-4 py-3 text-neutral-500">{{ d.registrar ?? '—' }}</td>
+                    <td class="px-4 py-3 text-neutral-500">{{ d.expiration_date }}</td>
+                </tr></tbody>
+            </table>
+        </div>
+    </div>
+</template>

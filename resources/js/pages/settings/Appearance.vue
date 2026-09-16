@@ -2,14 +2,15 @@
 import { Head } from '@inertiajs/vue3';
 import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import Heading from '@/components/Heading.vue';
-import { edit } from '@/routes/appearance';
+
+const editUrl = '/settings/appearance';
 
 defineOptions({
     layout: {
         breadcrumbs: [
             {
                 title: 'Appearance settings',
-                href: edit(),
+                href: editUrl,
             },
         ],
     },
