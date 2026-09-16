@@ -3,22 +3,48 @@
 namespace App\Services\Hosting;
 
 use App\Models\HostingServer;
-use phpseclib3\Net\SSH2;
-use phpseclib3\Crypt\PublicKeyLoader;
-use RuntimeException;
 use Illuminate\Support\Str;
+use phpseclib4\Crypt\PublicKeyLoader;
+use RuntimeException;
 
 class CustomSshAdapter implements HostingProviderInterface
 {
-    private function connect(HostingServer $server): SSH2
+    private function resolveSshClass(): string
     {
-        $ssh = new SSH2($server->ip_address, $server->ssh_port ?? 22);
+        if (class_exists('phpseclib4\Net\SSH2')) {
+            return 'phpseclib4\Net\SSH2';
+        }
+
+        if (class_exists('phpseclib3\Net\SSH2')) {
+            return 'phpseclib3\Net\SSH2';
+        }
+
+        throw new RuntimeException('phpseclib tidak ditemukan. Silakan jalankan: composer require "phpseclib/phpseclib:^3.0 || ^4.0"');
+    }
+
+    private function loadKey(string $keyContent): mixed
+    {
+        if (class_exists('phpseclib4\Crypt\PublicKeyLoader')) {
+            return PublicKeyLoader::load($keyContent);
+        }
+
+        if (class_exists('phpseclib3\Crypt\PublicKeyLoader')) {
+            return \phpseclib3\Crypt\PublicKeyLoader::load($keyContent);
+        }
+
+        throw new RuntimeException('phpseclib tidak ditemukan. Silakan jalankan: composer require "phpseclib/phpseclib:^3.0 || ^4.0"');
+    }
+
+    private function connect(HostingServer $server): object
+    {
+        $sshClass = $this->resolveSshClass();
+        $ssh = new $sshClass($server->ip_address, $server->ssh_port ?? 22);
 
         if (! file_exists($server->ssh_key_path)) {
             throw new RuntimeException("SSH key not found: {$server->ssh_key_path}");
         }
 
-        $key = PublicKeyLoader::load(file_get_contents($server->ssh_key_path));
+        $key = $this->loadKey(file_get_contents($server->ssh_key_path));
 
         if (! $ssh->login($server->ssh_user, $key)) {
             throw new RuntimeException("SSH login failed for {$server->ssh_user}@{$server->ip_address}");

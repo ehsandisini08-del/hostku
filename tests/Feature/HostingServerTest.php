@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\HostingServer;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Hosting\CustomSshAdapter;
 
 function createAdminUser(): User
 {
@@ -91,3 +93,26 @@ test('storing custom ssh hosting server requires ssh_user and ssh_key_path', fun
 
     $response->assertSessionHasErrors(['ssh_user', 'ssh_key_path']);
 });
+
+test('custom ssh adapter can be instantiated', function () {
+    $adapter = new CustomSshAdapter;
+    expect($adapter)->toBeInstanceOf(CustomSshAdapter::class);
+});
+
+test('custom ssh adapter throws exception when key file not found', function () {
+    $server = HostingServer::create([
+        'name' => 'Server Test',
+        'hostname' => 'srv.test.id',
+        'ip_address' => '127.0.0.1',
+        'panel_type' => 'custom_ssh',
+        'ssh_user' => 'hostku-provision',
+        'ssh_key_path' => '/nonexistent/path/to/key',
+    ]);
+
+    $adapter = new CustomSshAdapter;
+    $adapter->createAccount($server, [
+        'username' => 'testuser',
+        'domain' => 'testuser.hostku.id',
+        'password' => 'secret',
+    ]);
+})->throws(RuntimeException::class);
