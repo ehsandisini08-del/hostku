@@ -89,16 +89,111 @@ test('authenticated user can order hosting and get redirected to checkout', func
     ]);
 });
 
-test('guest cannot place order without login', function () {
-    $product = Product::factory()->hosting()->create();
+test('guest placing order is redirected to login and pending order is saved in session', function () {
+    $product = Product::factory()->hosting()->create(['is_active' => true]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'billing_cycle' => 'monthly',
+        'price' => 50000,
+    ]);
 
     $response = $this->post('/order/hosting', [
         'product_id' => $product->id,
         'billing_cycle' => 'monthly',
         'domain' => 'tokobaru.com',
+        'auth_action' => 'login',
     ]);
 
     $response->assertRedirect(route('login'));
+    $response->assertSessionHas('pending_hosting_order');
+});
+
+test('guest placing order with register action is redirected to register', function () {
+    $product = Product::factory()->hosting()->create(['is_active' => true]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'billing_cycle' => 'annually',
+        'price' => 500000,
+    ]);
+
+    $response = $this->post('/order/hosting', [
+        'product_id' => $product->id,
+        'billing_cycle' => 'annually',
+        'domain' => 'tokobaru.com',
+        'auth_action' => 'register',
+    ]);
+
+    $response->assertRedirect(route('register'));
+    $response->assertSessionHas('pending_hosting_order');
+});
+
+test('guest order redirects to checkout upon successful login', function () {
+    $user = User::factory()->create([
+        'password' => bcrypt('password'),
+    ]);
+    $product = Product::factory()->hosting()->create(['is_active' => true]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'billing_cycle' => 'monthly',
+        'price' => 50000,
+    ]);
+
+    // Guest configures order
+    $this->post('/order/hosting', [
+        'product_id' => $product->id,
+        'billing_cycle' => 'monthly',
+        'domain' => 'clientorder.com',
+    ]);
+
+    // User logs in
+    $loginResponse = $this->post(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $invoice = Invoice::where('user_id', $user->id)->first();
+    expect($invoice)->not->toBeNull();
+
+    $loginResponse->assertRedirect(route('checkout', $invoice->id));
+    $this->assertDatabaseHas('order_items', [
+        'product_id' => $product->id,
+        'total' => 50000,
+    ]);
+});
+
+test('guest order redirects to checkout upon successful registration', function () {
+    $product = Product::factory()->hosting()->create(['is_active' => true]);
+    ProductPrice::factory()->create([
+        'product_id' => $product->id,
+        'billing_cycle' => 'monthly',
+        'price' => 50000,
+    ]);
+
+    // Guest configures order and chooses register
+    $this->post('/order/hosting', [
+        'product_id' => $product->id,
+        'billing_cycle' => 'monthly',
+        'domain' => 'newclient.com',
+        'auth_action' => 'register',
+    ]);
+
+    // User registers
+    $registerResponse = $this->post(route('register.store'), [
+        'name' => 'New Customer',
+        'email' => 'newcustomer@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $user = User::where('email', 'newcustomer@example.com')->firstOrFail();
+    $invoice = Invoice::where('user_id', $user->id)->first();
+    expect($invoice)->not->toBeNull();
+
+    $registerResponse->assertRedirect(route('checkout', $invoice->id));
+    $this->assertDatabaseHas('order_items', [
+        'product_id' => $product->id,
+        'total' => 50000,
+    ]);
 });
 
 test('hosting order requires valid domain name format', function () {

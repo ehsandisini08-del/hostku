@@ -21,6 +21,7 @@ class OrderController extends Controller
                 'max:255',
                 'regex:/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)+$/',
             ],
+            'auth_action' => ['nullable', 'in:login,register'],
         ], [
             'domain.regex' => 'Format nama domain tidak valid (contoh: domainanda.com).',
         ]);
@@ -29,6 +30,21 @@ class OrderController extends Controller
 
         if ($product->type !== 'hosting' || ! $product->is_active) {
             return back()->with('error', 'Paket hosting tidak valid atau tidak aktif.');
+        }
+
+        if (! $request->user()) {
+            $request->session()->put('pending_hosting_order', [
+                'product_id' => $product->id,
+                'billing_cycle' => $validated['billing_cycle'],
+                'domain' => $validated['domain'],
+            ]);
+
+            $action = $request->input('auth_action', 'login');
+            $targetRoute = $action === 'register' ? 'register' : 'login';
+
+            return redirect()->route($targetRoute)
+                ->with('status', 'Silakan '.($action === 'register' ? 'daftar akun' : 'login').' untuk melanjutkan pemesanan paket hosting.')
+                ->with('info', 'Silakan '.($action === 'register' ? 'daftar akun' : 'login').' untuk melanjutkan pemesanan paket hosting.');
         }
 
         $invoice = $orderService->createHostingOrder(

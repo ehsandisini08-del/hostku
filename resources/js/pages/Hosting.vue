@@ -24,6 +24,7 @@ const orderForm = useForm({
     product_id: null as number | null,
     billing_cycle: 'monthly',
     domain: '',
+    auth_action: 'login' as 'login' | 'register',
 });
 
 function selectPlan(plan: any) {
@@ -31,6 +32,7 @@ function selectPlan(plan: any) {
     orderForm.product_id = plan.id;
     orderForm.billing_cycle = 'monthly';
     orderForm.domain = '';
+    orderForm.auth_action = 'login';
     orderForm.clearErrors();
     showOrderModal.value = true;
 }
@@ -43,7 +45,8 @@ const currentPrice = computed(() => {
     return aMonth(selectedPlan.value)?.price ?? 0;
 });
 
-function submitOrder() {
+function submitOrder(action: 'login' | 'register' = 'login') {
+    orderForm.auth_action = action;
     orderForm.post('/order/hosting', {
         onSuccess: () => {
             showOrderModal.value = false;
@@ -188,7 +191,8 @@ function submitOrder() {
 
                 <div v-if="user" class="pt-2">
                     <button
-                        type="submit"
+                        type="button"
+                        @click="submitOrder('login')"
                         :disabled="orderForm.processing"
                         class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
                     >
@@ -197,17 +201,24 @@ function submitOrder() {
                     </button>
                 </div>
 
-                <div v-else class="space-y-2 pt-2">
-                    <Link
-                        href="/login"
-                        class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white transition hover:bg-blue-700"
+                <div v-else class="space-y-2.5 pt-2">
+                    <button
+                        type="button"
+                        @click="submitOrder('login')"
+                        :disabled="orderForm.processing"
+                        class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
                     >
-                        Login untuk Memesan
+                        {{ orderForm.processing ? 'Menyimpan Pesanan...' : 'Login & Lanjut ke Pembayaran' }}
                         <ArrowRight class="h-4 w-4" />
-                    </Link>
-                    <p class="text-center text-xs text-neutral-500">
-                        Belum punya akun? <Link href="/register" class="text-blue-600 underline dark:text-blue-400">Daftar sekarang</Link>
-                    </p>
+                    </button>
+                    <button
+                        type="button"
+                        @click="submitOrder('register')"
+                        :disabled="orderForm.processing"
+                        class="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-600 py-2.5 text-sm font-medium text-blue-600 transition hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-950 disabled:opacity-50"
+                    >
+                        Daftar Akun Baru & Lanjut Pembayaran
+                    </button>
                 </div>
             </form>
         </div>

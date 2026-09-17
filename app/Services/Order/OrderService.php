@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Service;
 use App\Models\User;
 use App\Services\Hosting\HostingProvisioningService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -94,6 +95,37 @@ class OrderService
 
             return $invoice;
         });
+    }
+
+    public function handlePendingHostingOrder(User $user, ?Request $request = null): ?Invoice
+    {
+        $session = $request ? $request->session() : session();
+
+        if (! $session->has('pending_hosting_order')) {
+            return null;
+        }
+
+        $pending = $session->pull('pending_hosting_order');
+        $productId = $pending['product_id'] ?? null;
+        $billingCycle = $pending['billing_cycle'] ?? null;
+        $domain = $pending['domain'] ?? null;
+
+        if (! $productId || ! $billingCycle || ! $domain) {
+            return null;
+        }
+
+        $product = Product::with(['hostingPlan', 'prices'])->find($productId);
+
+        if (! $product || ! $product->is_active) {
+            return null;
+        }
+
+        return $this->createHostingOrder(
+            user: $user,
+            product: $product,
+            billingCycle: $billingCycle,
+            domain: $domain,
+        );
     }
 
     public function fulfillOrder(Order $order): void

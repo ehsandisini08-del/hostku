@@ -6,6 +6,7 @@ use App\Http\Controllers\Customer\VpsController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PublicController;
+use App\Services\Order\OrderService;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/home')->name('home');
@@ -14,11 +15,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', function () {
         $user = request()->user();
 
+        if ($user) {
+            $invoice = app(OrderService::class)->handlePendingHostingOrder($user, request());
+            if ($invoice) {
+                return redirect()->route('checkout', $invoice->id)->with('success', 'Pesanan hosting berhasil dibuat. Silakan selesaikan pembayaran.');
+            }
+        }
+
         return redirect($user->isAdmin() ? '/admin/dashboard' : '/customer/dashboard');
     })->name('dashboard');
-
-    Route::post('/order/hosting', [OrderController::class, 'storeHostingOrder'])->name('order.hosting');
 });
+
+Route::post('/order/hosting', [OrderController::class, 'storeHostingOrder'])->name('order.hosting');
 
 Route::prefix('customer')->name('customer.')->middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [CustomerController::class, 'dashboard'])->name('dashboard');

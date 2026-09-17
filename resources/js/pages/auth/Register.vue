@@ -12,6 +12,7 @@ import { store } from '@/routes/register';
 
 defineProps<{
     passwordRules: string;
+    status?: string;
 }>();
 
 defineOptions({
@@ -24,6 +25,13 @@ defineOptions({
 
 <template>
     <Head title="Register" />
+
+    <div
+        v-if="status"
+        class="mb-4 rounded-lg bg-blue-50 p-3 text-center text-sm font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-300"
+    >
+        {{ status }}
+    </div>
 
     <Form
         v-bind="store.form()"
