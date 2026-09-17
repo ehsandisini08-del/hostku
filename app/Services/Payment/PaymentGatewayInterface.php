@@ -3,6 +3,7 @@
 namespace App\Services\Payment;
 
 use App\Models\Invoice;
+use App\Models\Payment;
 
 interface PaymentGatewayInterface
 {

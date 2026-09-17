@@ -94,11 +94,11 @@ class CustomSshAdapter implements HostingProviderInterface
     {
         $domain = $config['domain'];
         $username = $config['username'];
-        $password = $config['password'] ?? Str::password(16);
+        $password = $config['password'] ?? Str::random(16);
         $base = $this->basePath($server);
         $home = "{$base}/{$username}";
         $dbName = 'h_'.$username;
-        $dbPass = Str::password(24);
+        $dbPass = Str::random(24);
         $version = $server->php_version ?: '8.3';
 
         $this->exec($server, "useradd -m -d {$home} -s /bin/false {$username}");

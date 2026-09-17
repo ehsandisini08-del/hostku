@@ -532,7 +532,7 @@ $result = $adapter->createAccount($server, [
     'password' => 'TestPass123!',
 ]);
 
-# Lihat hasil
+# Lihat hasiluser
 print_r($result);
 
 # Test terminate (bersihin)

@@ -4,6 +4,7 @@ namespace App\Services\Payment;
 
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\Order\OrderService;
 
 class PaymentService
 {
@@ -64,10 +65,42 @@ class PaymentService
                 $order = $invoice->order;
                 if ($order) {
                     $order->update(['status' => 'paid']);
+                    app(OrderService::class)->fulfillOrder($order);
                 }
             }
         }
 
         return $result;
+    }
+
+    public function markAsPaid(Invoice $invoice, string $paymentMethod = 'simulation', ?string $channel = null): Payment
+    {
+        $transactionId = 'PAY-'.$invoice->invoice_number.'-'.time();
+
+        $payment = Payment::create([
+            'invoice_id' => $invoice->id,
+            'transaction_id' => $transactionId,
+            'gateway' => 'simulation',
+            'amount' => $invoice->total,
+            'status' => 'paid',
+            'payment_method' => $paymentMethod,
+            'payment_channel' => $channel,
+            'paid_at' => now(),
+            'raw_response' => ['simulated' => true],
+        ]);
+
+        $invoice->update([
+            'status' => 'paid',
+            'paid_at' => now(),
+            'payment_method' => $paymentMethod,
+        ]);
+
+        $order = $invoice->order;
+        if ($order) {
+            $order->update(['status' => 'paid']);
+            app(OrderService::class)->fulfillOrder($order);
+        }
+
+        return $payment;
     }
 }

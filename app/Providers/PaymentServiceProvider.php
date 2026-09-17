@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Payment\DokuAdapter;
 use App\Services\Payment\MidtransAdapter;
 use App\Services\Payment\PaymentService;
+use App\Services\Payment\SimulationAdapter;
 use App\Services\Payment\XenditAdapter;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,6 +15,8 @@ class PaymentServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PaymentService::class, function () {
             $service = new PaymentService;
+
+            $service->register('simulation', new SimulationAdapter);
 
             if (config('services.midtrans.server_key')) {
                 $service->register('midtrans', new MidtransAdapter(

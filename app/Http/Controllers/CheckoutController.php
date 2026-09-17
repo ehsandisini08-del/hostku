@@ -30,11 +30,25 @@ class CheckoutController extends Controller
             abort(403);
         }
 
+        if ($invoice->status === 'paid') {
+            return redirect()->route('customer.hosting')->with('success', 'Invoice ini sudah lunas. Layanan hosting Anda telah aktif.');
+        }
+
         $validated = $request->validate([
-            'gateway' => ['required', 'in:midtrans,xendit,doku'],
+            'gateway' => ['required', 'in:midtrans,xendit,doku,simulation'],
             'payment_method' => ['required', 'string'],
             'payment_channel' => ['nullable', 'string'],
         ]);
+
+        if ($validated['gateway'] === 'simulation') {
+            $this->paymentService->markAsPaid(
+                $invoice,
+                $validated['payment_method'],
+                $validated['payment_channel'] ?? null,
+            );
+
+            return redirect()->route('customer.hosting')->with('success', 'Pembayaran berhasil dikonfirmasi! Layanan hosting Anda sedang diproses.');
+        }
 
         $result = $this->paymentService->createPayment($invoice, $validated['gateway'], [
             'payment_method' => $validated['payment_method'],

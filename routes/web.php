@@ -4,6 +4,7 @@ use App\Http\Controllers\Customer\DomainController;
 use App\Http\Controllers\Customer\HostingController;
 use App\Http\Controllers\Customer\VpsController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PublicController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +16,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         return redirect($user->isAdmin() ? '/admin/dashboard' : '/customer/dashboard');
     })->name('dashboard');
+
+    Route::post('/order/hosting', [OrderController::class, 'storeHostingOrder'])->name('order.hosting');
 });
 
 Route::prefix('customer')->name('customer.')->middleware(['auth', 'verified'])->group(function () {
@@ -47,6 +50,8 @@ Route::prefix('customer')->name('customer.')->middleware(['auth', 'verified'])->
     Route::get('/hosting-services', [HostingController::class, 'index'])->name('hosting');
     Route::get('/hosting-services/{hosting}', [HostingController::class, 'show'])->name('hosting.show');
     Route::post('/hosting-services/{hosting}/change-password', [HostingController::class, 'changePassword'])->name('hosting.password');
+    Route::get('/hosting/{hosting}', [HostingController::class, 'show']);
+    Route::post('/hosting/{hosting}/change-password', [HostingController::class, 'changePassword']);
 });
 
 Route::name('public.')->group(function () {

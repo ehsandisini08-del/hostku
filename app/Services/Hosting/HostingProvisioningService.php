@@ -19,8 +19,10 @@ class HostingProvisioningService
         $server = HostingServer::where('is_active', true)->firstOrFail();
         $plan = $hostingService->plan;
 
-        $username = Str::slug(explode('.', $domain)[0]).rand(100, 999);
-        $password = Str::password(16);
+        $rawPrefix = preg_replace('/[^a-z0-9]/', '', strtolower(explode('.', $domain)[0]));
+        $cleanPrefix = substr($rawPrefix ?: 'user', 0, 10);
+        $username = $cleanPrefix.rand(100, 999);
+        $password = Str::random(16);
 
         $provider = $this->resolveProvider($server);
 
