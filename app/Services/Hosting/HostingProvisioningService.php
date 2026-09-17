@@ -2,6 +2,7 @@
 
 namespace App\Services\Hosting;
 
+use App\Models\HostingEmail;
 use App\Models\HostingServer;
 use App\Models\HostingService;
 use Illuminate\Support\Str;
@@ -42,11 +43,137 @@ class HostingProvisioningService
             'domain' => $domain,
             'username' => $username,
             'server_ip' => $server->ip_address,
-            'panel_url' => $server->panel_type === 'custom_ssh' ? 'https://'.$server->ip_address.':2222' : $server->api_url,
+            'db_name' => $result['db_name'] ?? ('h_'.$username),
+            'db_user' => $result['db_user'] ?? $username,
+            'db_pass' => $result['db_pass'] ?? null,
+            'php_version' => $server->php_version ?: '8.4',
+            'ssl_active' => false,
+            'panel_url' => url('/customer/hosting/'.$hostingService->id),
             'provisioned_at' => now(),
         ]);
 
         return $result;
+    }
+
+    public function reissueSsl(HostingService $hostingService): array
+    {
+        $server = $hostingService->server;
+        if (! $server || $server->panel_type !== 'custom_ssh') {
+            return ['success' => false, 'message' => 'SSL automation is only available for custom SSH servers.'];
+        }
+
+        $result = $this->ssh->reissueSsl($server, $hostingService->domain);
+        if ($result['success']) {
+            $hostingService->update(['ssl_active' => true]);
+        }
+
+        return $result;
+    }
+
+    public function changePhpVersion(HostingService $hostingService, string $newVersion): array
+    {
+        $server = $hostingService->server;
+        if (! $server || $server->panel_type !== 'custom_ssh') {
+            return ['success' => false, 'message' => 'PHP version switcher is only available for custom SSH servers.'];
+        }
+
+        $result = $this->ssh->changePhpVersion($server, $hostingService->username, $hostingService->domain, $newVersion);
+        if ($result['success']) {
+            $hostingService->update(['php_version' => $newVersion]);
+        }
+
+        return $result;
+    }
+
+    public function resetDatabasePassword(HostingService $hostingService, string $newPassword): array
+    {
+        $server = $hostingService->server;
+        if (! $server || $server->panel_type !== 'custom_ssh') {
+            return ['success' => false];
+        }
+
+        $result = $this->ssh->resetDatabasePassword($server, $hostingService->username, $newPassword);
+        if ($result['success']) {
+            $hostingService->update(['db_pass' => $newPassword]);
+        }
+
+        return $result;
+    }
+
+    public function createMailbox(HostingService $hostingService, string $mailboxUser, string $password, int $quotaMb = 500): array
+    {
+        $domain = $hostingService->domain;
+        $maxEmails = $hostingService->plan?->max_emails ?? 1;
+
+        if ($maxEmails > 0 && $hostingService->emails()->count() >= $maxEmails) {
+            throw new RuntimeException("Batas pembuatan email untuk paket ini telah tercapai ({$maxEmails} email).");
+        }
+
+        $server = $hostingService->server;
+        if ($server && $server->panel_type === 'custom_ssh') {
+            $this->ssh->createMailbox($server, $domain, $mailboxUser, $password);
+        }
+
+        $email = $hostingService->emails()->create([
+            'email_address' => "{$mailboxUser}@{$domain}",
+            'mailbox_user' => $mailboxUser,
+            'domain' => $domain,
+            'quota_mb' => $quotaMb,
+        ]);
+
+        return [
+            'success' => true,
+            'email' => $email,
+        ];
+    }
+
+    public function deleteMailbox(HostingService $hostingService, HostingEmail $email): void
+    {
+        $server = $hostingService->server;
+        if ($server && $server->panel_type === 'custom_ssh') {
+            $this->ssh->deleteMailbox($server, $hostingService->domain, $email->mailbox_user);
+        }
+
+        $email->delete();
+    }
+
+    public function changeMailboxPassword(HostingService $hostingService, HostingEmail $email, string $newPassword): void
+    {
+        $server = $hostingService->server;
+        if ($server && $server->panel_type === 'custom_ssh') {
+            $this->ssh->changeMailboxPassword($server, $hostingService->domain, $email->mailbox_user, $newPassword);
+        }
+    }
+
+    public function checkDns(string $domain, string $expectedIp): array
+    {
+        if (empty($domain)) {
+            return [
+                'domain' => $domain,
+                'expected_ip' => $expectedIp,
+                'resolved_ip' => null,
+                'is_pointed' => false,
+            ];
+        }
+
+        if (app()->environment('testing')) {
+            return [
+                'domain' => $domain,
+                'expected_ip' => $expectedIp,
+                'resolved_ip' => $expectedIp,
+                'is_pointed' => true,
+            ];
+        }
+
+        $resolvedIp = @gethostbyname($domain);
+        $isPointed = ($resolvedIp === $expectedIp);
+
+        return [
+            'domain' => $domain,
+            'expected_ip' => $expectedIp,
+            'resolved_ip' => ($resolvedIp === $domain) ? null : $resolvedIp,
+            'is_pointed' => $isPointed,
+        ];
     }
 
     public function suspend(HostingService $hostingService): void

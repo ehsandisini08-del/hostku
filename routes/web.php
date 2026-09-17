@@ -58,6 +58,13 @@ Route::prefix('customer')->name('customer.')->middleware(['auth', 'verified'])->
     Route::get('/hosting-services', [HostingController::class, 'index'])->name('hosting');
     Route::get('/hosting-services/{hosting}', [HostingController::class, 'show'])->name('hosting.show');
     Route::post('/hosting-services/{hosting}/change-password', [HostingController::class, 'changePassword'])->name('hosting.password');
+    Route::post('/hosting-services/{hosting}/ssl/reissue', [HostingController::class, 'reissueSsl'])->name('hosting.ssl.reissue');
+    Route::post('/hosting-services/{hosting}/php-version', [HostingController::class, 'changePhpVersion'])->name('hosting.php.change');
+    Route::post('/hosting-services/{hosting}/database/reset-password', [HostingController::class, 'resetDatabasePassword'])->name('hosting.database.password');
+    Route::post('/hosting-services/{hosting}/emails', [HostingController::class, 'storeEmail'])->name('hosting.emails.store');
+    Route::delete('/hosting-services/{hosting}/emails/{email}', [HostingController::class, 'destroyEmail'])->name('hosting.emails.destroy');
+    Route::put('/hosting-services/{hosting}/emails/{email}/password', [HostingController::class, 'changeEmailPassword'])->name('hosting.emails.password');
+
     Route::get('/hosting/{hosting}', [HostingController::class, 'show']);
     Route::post('/hosting/{hosting}/change-password', [HostingController::class, 'changePassword']);
 });

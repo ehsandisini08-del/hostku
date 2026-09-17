@@ -195,6 +195,119 @@ class CustomSshAdapter implements HostingProviderInterface
         ];
     }
 
+    public function reissueSsl(HostingServer $server, string $domain): array
+    {
+        $email = $server->ssl_email ?: 'admin@hostku.id';
+        $output = $this->exec($server, "certbot --nginx -d {$domain} -d www.{$domain} --non-interactive --agree-tos -m {$email} 2>&1");
+        $this->exec($server, 'systemctl reload nginx');
+
+        $certExists = $this->exec($server, "[ -f /etc/letsencrypt/live/{$domain}/fullchain.pem ] && echo 'yes' || echo 'no'");
+
+        return [
+            'success' => trim($certExists) === 'yes',
+            'output' => $output,
+        ];
+    }
+
+    public function changePhpVersion(HostingServer $server, string $username, string $domain, string $newVersion): array
+    {
+        $home = "{$this->basePath($server)}/{$username}";
+        $newPoolConfig = $this->buildPhpFpmPool($newVersion, $username);
+        $newPoolFile = "/etc/php/{$newVersion}/fpm/pool.d/{$username}.conf";
+
+        // Remove old pools across other versions
+        $this->exec($server, "rm -f /etc/php/*/fpm/pool.d/{$username}.conf");
+
+        // Write new pool
+        $this->writeFile($server, $newPoolFile, $newPoolConfig);
+
+        // Update nginx
+        $nginxConfig = $this->buildNginxConfigWithVersion($domain, $username, $home, $newVersion);
+        $this->writeFile($server, $this->nginxAvailable($server, $domain), $nginxConfig);
+        $this->exec($server, "ln -sf {$this->nginxAvailable($server, $domain)} {$this->nginxEnabled($server, $domain)}");
+
+        $this->exec($server, "systemctl reload nginx php{$newVersion}-fpm");
+
+        return ['success' => true, 'version' => $newVersion];
+    }
+
+    public function resetDatabasePassword(HostingServer $server, string $username, string $newPassword): array
+    {
+        $this->exec($server, "mysql -e \"ALTER USER '{$username}'@'localhost' IDENTIFIED BY '{$newPassword}'; FLUSH PRIVILEGES;\"");
+
+        return ['success' => true];
+    }
+
+    public function createMailbox(HostingServer $server, string $domain, string $mailboxUser, string $password): array
+    {
+        $email = "{$mailboxUser}@{$domain}";
+
+        // Setup virtual mail schema & insert
+        $sql = <<<SQL
+CREATE DATABASE IF NOT EXISTS hostku_mail;
+CREATE TABLE IF NOT EXISTS hostku_mail.virtual_domains (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS hostku_mail.virtual_users (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, domain VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL UNIQUE, password VARCHAR(255) NOT NULL);
+INSERT IGNORE INTO hostku_mail.virtual_domains (name) VALUES ('{$domain}');
+INSERT INTO hostku_mail.virtual_users (domain, email, password) VALUES ('{$domain}', '{$email}', SHA2('{$password}', 512))
+ON DUPLICATE KEY UPDATE password = SHA2('{$password}', 512);
+SQL;
+
+        $this->exec($server, "mysql -e \"{$sql}\"");
+        $this->exec($server, "mkdir -p /var/mail/vhosts/{$domain}/{$mailboxUser}/{cur,new,tmp} && chmod -R 770 /var/mail/vhosts 2>/dev/null || true");
+
+        return [
+            'success' => true,
+            'email' => $email,
+        ];
+    }
+
+    public function deleteMailbox(HostingServer $server, string $domain, string $mailboxUser): array
+    {
+        $email = "{$mailboxUser}@{$domain}";
+        $this->exec($server, "mysql -e \"DELETE FROM hostku_mail.virtual_users WHERE email='{$email}';\"");
+        $this->exec($server, "rm -rf /var/mail/vhosts/{$domain}/{$mailboxUser} 2>/dev/null || true");
+
+        return ['success' => true];
+    }
+
+    public function changeMailboxPassword(HostingServer $server, string $domain, string $mailboxUser, string $newPassword): array
+    {
+        $email = "{$mailboxUser}@{$domain}";
+        $this->exec($server, "mysql -e \"UPDATE hostku_mail.virtual_users SET password=SHA2('{$newPassword}', 512) WHERE email='{$email}';\"");
+
+        return ['success' => true];
+    }
+
+    private function buildNginxConfigWithVersion(string $domain, string $username, string $home, string $version): string
+    {
+        return <<<NGINX
+server {
+    listen 80;
+    server_name {$domain} www.{$domain};
+    root {$home}/public_html;
+    index index.php index.html;
+
+    access_log {$home}/logs/access.log;
+    error_log {$home}/logs/error.log;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php\$ {
+        fastcgi_pass unix:/run/php/php{$version}-fpm-{$username}.sock;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+NGINX;
+    }
+
     private function buildNginxConfig(HostingServer $server, string $domain, string $username, string $home): string
     {
         $version = $server->php_version ?: '8.3';

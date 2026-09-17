@@ -354,6 +354,34 @@ Folder `/etc/php/8.4/fpm/pool.d/` harus writable oleh `hostku-provision`:
 sudo chmod 755 /etc/php/8.4/fpm/pool.d/
 ```
 
+### 2.7 Setup phpMyAdmin (Opsional tapi Disarankan)
+
+Agar customer bisa mengelola database via web:
+
+```bash
+sudo apt install -y phpmyadmin
+# Buat symlink ke webroot default
+sudo ln -s /usr/share/phpmyadmin /var/www/html/phpmyadmin
+# Buka akses http://IP-HOSTING-SERVER/phpmyadmin
+```
+
+### 2.8 Setup Mail Server Mandiri (Postfix + Dovecot + Roundcube Webmail)
+
+Agar customer dapat membuat & menggunakan email domain bisnis (`info@domainanda.com`):
+
+```bash
+# 1. Install Postfix, Dovecot (IMAP/POP3), dan Roundcube
+sudo DEBIAN_FRONTEND=noninteractive apt install -y postfix postfix-mysql dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd roundcube roundcube-mysql
+
+# 2. Buat symlink webmail di webroot default
+sudo ln -s /usr/share/roundcube /var/www/html/webmail
+# Webmail dapat diakses via: http://IP-HOSTING-SERVER/webmail
+
+# 3. Database virtual mail otomatis disiapkan oleh HostKu provisioning:
+# Database: hostku_mail
+# Tabel: virtual_domains, virtual_users
+```
+
 ---
 
 ## Bagian 3 — SSH Key Setup (App Server ↔ Hosting Server)
@@ -411,6 +439,9 @@ ssh -i /var/www/hostku/storage/keys/hostku_provision hostku-provision@IP-HOSTING
 sudo ufw allow 22/tcp    # SSH
 sudo ufw allow 80/tcp    # HTTP
 sudo ufw allow 443/tcp   # HTTPS
+sudo ufw allow 25/tcp    # SMTP
+sudo ufw allow 587/tcp   # Submission SMTP
+sudo ufw allow 993/tcp   # IMAPS
 sudo ufw allow 3306/tcp  # MySQL (hanya dari IP App Server!)
 sudo ufw enable
 ```
